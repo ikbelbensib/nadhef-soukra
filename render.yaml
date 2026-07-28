@@ -18,7 +18,12 @@ services:
     plan: free
     branch: main
     # Un seul processus sert l'API et le client bâti (server/src/app.ts).
-    buildCommand: npm ci && npm run build
+    #
+    # `--include=dev` n'est pas superflu : npm lit NODE_ENV, et comme il vaut
+    # `production` ci-dessous, un `npm ci` nu omettrait les devDependencies —
+    # donc `tsc`, `vite` et `tailwindcss`, sans lesquels il n'y a pas de build.
+    # Elles ne pèsent que sur l'image de build, pas sur l'exécution.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node server/dist/index.js
     # Render coupe une instance gratuite jugée morte : cette sonde l'en empêche
     # et sert de vérification de déploiement.
