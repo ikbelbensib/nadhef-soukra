@@ -5,7 +5,7 @@ import cors from 'cors';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { router } from './routes/index.js';
 import { routerEcriture } from './routes/ecriture.js';
 import { routerChantiers } from './routes/chantiers.js';
@@ -21,6 +21,35 @@ import { env, isProd } from './env.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = join(HERE, '..', '..', 'client', 'dist');
 const TILES_DIR = join(HERE, '..', 'data', 'tiles');
+
+const UN_AN = 31_536_000;
+const UNE_SEMAINE = 604_800;
+
+/**
+ * Trois régimes de cache, parce qu'un seul serait faux pour deux tiers des
+ * fichiers.
+ *
+ * Vite empreinte le nom des fichiers d'`assets/` et de `workbox-*.js` : sous
+ * une URL donnée, le contenu ne changera jamais. Les figer un an évite de
+ * refaire télécharger ~1,5 Mo de JavaScript et de polices arabes à chaque
+ * visiteur qui revient — sur un forfait mobile tunisien, ce n'est pas un
+ * détail.
+ *
+ * `sw.js`, le manifeste et `index.html` sont au contraire le mécanisme de mise
+ * à jour : les mettre en cache retarderait d'autant la diffusion d'un
+ * correctif. Ils partent en `no-cache` (revalidation obligatoire, pas absence
+ * de cache : un 304 reste possible).
+ */
+function regimeDeCache(res: { setHeader(n: string, v: string): void }, chemin: string): void {
+  const nom = basename(chemin);
+  if (nom === 'sw.js' || nom === 'manifest.webmanifest' || nom === 'index.html') {
+    res.setHeader('Cache-Control', 'no-cache');
+  } else if (chemin.includes(`${sep}assets${sep}`) || /^workbox-[A-Za-z0-9_-]+\.js$/.test(nom)) {
+    res.setHeader('Cache-Control', `public, max-age=${UN_AN}, immutable`);
+  } else {
+    res.setHeader('Cache-Control', `public, max-age=${UNE_SEMAINE}`);
+  }
+}
 
 export function createApp(): Express {
   const app = express();
@@ -79,13 +108,16 @@ export function createApp(): Express {
   // En production le serveur sert aussi le build du client (image Docker unique).
   if (existsSync(CLIENT_DIST)) {
     const indexPath = join(CLIENT_DIST, 'index.html');
-    app.use(express.static(CLIENT_DIST, { maxAge: '1h', index: false }));
+    app.use(express.static(CLIENT_DIST, { index: false, setHeaders: regimeDeCache }));
 
     // Les robots d'aperçu (WhatsApp, Facebook) n'exécutent pas le JavaScript :
     // sans injection, un lien partagé vers un spot n'aurait aucun aperçu.
     app.get('/spot/:id', (req, res, next) => {
       void (async () => {
         try {
+          // Le HTML est le point d'entrée : il ne doit jamais être servi depuis
+          // un cache, sinon il continue de référencer les anciens bundles.
+          res.setHeader('Cache-Control', 'no-cache');
           const meta = await metadonneesPartage(req.params.id);
           if (!meta) {
             res.sendFile(indexPath);
@@ -100,6 +132,7 @@ export function createApp(): Express {
     });
 
     app.get(/^(?!\/api|\/tiles|\/uploads).*/, (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(indexPath);
     });
   }

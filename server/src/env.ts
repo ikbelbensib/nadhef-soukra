@@ -11,6 +11,9 @@ import { z } from 'zod';
  */
 const texte = (): z.ZodString => z.string().trim();
 
+/** Numéro d'exemple du compte de modération — refusé si un vrai SMS part. */
+const DEFAUT_TELEPHONE_ADMIN = '+21620000000';
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -57,7 +60,7 @@ const schema = z.object({
   // Doit respecter le format tunisien réel (8 chiffres commençant par 2/4/5/9),
   // sinon le compte admin ne peut pas se connecter : la vérification OTP
   // applique la même validation que pour tout le monde.
-  SEED_ADMIN_PHONE: texte().default('+21620000000'),
+  SEED_ADMIN_PHONE: texte().default(DEFAUT_TELEPHONE_ADMIN),
 
   /**
    * Injecte le jeu de démonstration au démarrage si la base est vide.
@@ -91,6 +94,20 @@ function load(): Env {
     if (defauts.length > 0) {
       console.error(
         `✗ Secrets laissés à leur valeur de développement en production : ${defauts.join(', ')}`,
+      );
+      process.exit(1);
+    }
+
+    // Le compte de modération est lié à un numéro : c'est quiconque reçoit le
+    // SMS qui peut s'y connecter. Avec le fournisseur `console` le code ne
+    // sort que dans les journaux du serveur, donc le numéro par défaut est
+    // sans danger. Dès qu'un vrai fournisseur est branché, il donnerait les
+    // pleins pouvoirs au propriétaire réel de ce numéro.
+    if (value.SMS_PROVIDER !== 'console' && value.SEED_ADMIN_PHONE === DEFAUT_TELEPHONE_ADMIN) {
+      console.error(
+        `✗ SEED_ADMIN_PHONE est resté au numéro d'exemple (${DEFAUT_TELEPHONE_ADMIN}) alors qu'un\n` +
+          `  fournisseur SMS réel est configuré : le compte administrateur serait accessible au\n` +
+          '  propriétaire de ce numéro. Renseigne le tien.',
       );
       process.exit(1);
     }
