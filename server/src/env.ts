@@ -2,53 +2,62 @@
 
 import { z } from 'zod';
 
+/**
+ * Une valeur collée dans l'interface d'un hébergeur emporte très souvent un
+ * saut de ligne ou une espace finale. Invisible, et fatal : un `\n` en fin
+ * d'URL devient `%0A` une fois encodé, et le client libSQL rejette l'adresse
+ * avec un `ERR_INVALID_URL` qui ne dit pas d'où vient le caractère.
+ * On rogne donc systématiquement, plutôt que d'espérer un copier-coller propre.
+ */
+const texte = (): z.ZodString => z.string().trim();
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  HOST: z.string().default('0.0.0.0'),
+  HOST: texte().default('0.0.0.0'),
 
   /** libSQL : `file:` en local, `libsql://…` sur Turso. */
-  DATABASE_URL: z.string().min(1).default('file:./data/nadhef.db'),
-  DATABASE_AUTH_TOKEN: z.string().optional(),
+  DATABASE_URL: texte().min(1).default('file:./data/nadhef.db'),
+  DATABASE_AUTH_TOKEN: texte().optional(),
 
   /** Pepper du HMAC des numéros de téléphone. Jamais en base, jamais commité. */
-  PHONE_PEPPER: z.string().min(16).default('dev-pepper-a-remplacer-en-production'),
-  JWT_SECRET: z.string().min(16).default('dev-jwt-secret-a-remplacer-en-production'),
+  PHONE_PEPPER: texte().min(16).default('dev-pepper-a-remplacer-en-production'),
+  JWT_SECRET: texte().min(16).default('dev-jwt-secret-a-remplacer-en-production'),
 
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: texte().default('*'),
 
   /** Fournisseur SMS. `console` affiche le code dans les logs (développement). */
-  SMS_PROVIDER: z.string().default('console'),
+  SMS_PROVIDER: texte().default('console'),
 
   /**
    * Stockage des photos, sur n'importe quel service compatible S3 — Cloudflare
    * R2, Supabase Storage, Backblaze B2, MinIO. Si l'un des cinq champs manque,
    * on retombe sur le disque local.
    */
-  S3_ENDPOINT: z.string().url().optional(),
-  S3_BUCKET: z.string().optional(),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-  S3_PUBLIC_BASE: z.string().url().optional(),
+  S3_ENDPOINT: texte().url().optional(),
+  S3_BUCKET: texte().optional(),
+  S3_ACCESS_KEY_ID: texte().optional(),
+  S3_SECRET_ACCESS_KEY: texte().optional(),
+  S3_PUBLIC_BASE: texte().url().optional(),
   /**
    * R2 accepte la région fictive `auto` ; la plupart des autres services
    * vérifient qu'elle correspond à celle du bucket, et rejettent la signature
    * SigV4 sinon (`SignatureDoesNotMatch`). Supabase attend p. ex. `eu-central-1`.
    */
-  S3_REGION: z.string().default('auto'),
+  S3_REGION: texte().default('auto'),
 
   /** Base publique du site, pour les URL partageables et les métadonnées Open Graph. */
-  PUBLIC_BASE_URL: z.string().url().default('http://localhost:3000'),
+  PUBLIC_BASE_URL: texte().url().default('http://localhost:3000'),
 
   /** Fond de carte Protomaps auto-hébergé (règle #1 : pas de Google Maps). */
-  PMTILES_URL: z.string().default('/tiles/soukra.pmtiles'),
+  PMTILES_URL: texte().default('/tiles/soukra.pmtiles'),
 
   /** Compte modérateur créé au seed. */
-  SEED_ADMIN_PSEUDO: z.string().min(2).max(32).default('admin'),
+  SEED_ADMIN_PSEUDO: texte().min(2).max(32).default('admin'),
   // Doit respecter le format tunisien réel (8 chiffres commençant par 2/4/5/9),
   // sinon le compte admin ne peut pas se connecter : la vérification OTP
   // applique la même validation que pour tout le monde.
-  SEED_ADMIN_PHONE: z.string().default('+21620000000'),
+  SEED_ADMIN_PHONE: texte().default('+21620000000'),
 
   /**
    * Injecte le jeu de démonstration au démarrage si la base est vide.
