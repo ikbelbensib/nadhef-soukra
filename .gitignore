@@ -22,3 +22,6 @@ server/data/tiles/*.pmtiles
 .vscode/
 .idea/
 dev-dist/
+
+# Secrets déposés à la main (jamais versionnés)
+token/
