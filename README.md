@@ -33,6 +33,19 @@ Express (`server/src/app.ts`), le repli SPA renvoyant `index.html` sur toute
 route inconnue. C'est ce qui permet un déploiement sur n'importe quel hébergeur
 Node (Render en runtime natif, Railway, une VM) sans image à construire.
 
+### Déployer
+
+`render.yaml` décrit le service : runtime Node, `npm run build`, puis
+`node server/dist/index.js`. Les migrations s'appliquent au démarrage.
+
+Deux services externes sont **nécessaires**, pas optionnels — le disque d'un
+hébergeur de ce type est éphémère :
+
+| Service | Sans lui |
+|---|---|
+| **Turso** (`DATABASE_URL`) | tous les signalements disparaissent au redéploiement |
+| **Cloudflare R2** (`R2_*`) | les preuves avant/après des chantiers disparaissent |
+
 ### En développement
 
 ```bash

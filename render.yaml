@@ -1,0 +1,82 @@
+# Blueprint Render — runtime Node natif, pas Docker.
+#
+# Le Dockerfile du dépôt ne fait rien de plus que `npm run build` puis
+# `node dist/index.js` ; passer par le runtime Node évite de construire une
+# image et rend le déploiement lisible. Le Dockerfile reste valable pour qui
+# préfère un conteneur.
+#
+# Mise en service : Render → New → Blueprint → ce dépôt. Les variables marquées
+# `sync: false` ne sont PAS versionnées : Render les réclame au moment de la
+# création, à renseigner dans son interface.
+
+services:
+  - type: web
+    name: nadhef-soukra
+    runtime: node
+    # Francfort est la région la plus proche de la Tunisie.
+    region: frankfurt
+    plan: free
+    branch: main
+    # Un seul processus sert l'API et le client bâti (server/src/app.ts).
+    buildCommand: npm ci && npm run build
+    startCommand: node server/dist/index.js
+    # Render coupe une instance gratuite jugée morte : cette sonde l'en empêche
+    # et sert de vérification de déploiement.
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+
+      # Secrets engendrés par Render, jamais vus par personne. Le serveur
+      # refuse de démarrer en production s'ils gardent leur valeur de
+      # développement (server/src/env.ts) — d'où la génération automatique.
+      - key: PHONE_PEPPER
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+
+      # --- Base libSQL / Turso ------------------------------------------------
+      # OBLIGATOIRE. Sans elle, la base retombe sur un fichier local, et le
+      # disque de Render est éphémère : tous les signalements disparaîtraient au
+      # premier redéploiement.
+      - key: DATABASE_URL          # libsql://…-<compte>.turso.io
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
+
+      # --- Photos : Cloudflare R2 --------------------------------------------
+      # Même raison que la base. Sans R2, les preuves avant/après des chantiers
+      # sont écrites sur le disque éphémère et perdues au redéploiement.
+      # Si l'un de ces champs manque, le code retombe sur le disque local
+      # (server/src/services/storage.ts) — acceptable pour un test, pas en
+      # production.
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PUBLIC_BASE
+        sync: false
+
+      # --- Domaine ------------------------------------------------------------
+      # Construit les URL de partage et les vignettes Open Graph
+      # (server/src/services/partage.ts). À faire pointer sur le domaine
+      # définitif une fois le DNS OVH en place ; l'URL .onrender.com convient
+      # en attendant.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Restreindre au domaine servi. Le `*` du développement laisserait
+      # n'importe quel site appeler l'API au nom d'un visiteur.
+      - key: CORS_ORIGIN
+        sync: false
+
+      # Le seed de démonstration n'a rien à faire sur une instance réelle, où
+      # les données sont celles des habitants.
+      - key: SEED_ON_START
+        value: "false"
