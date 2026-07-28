@@ -47,21 +47,26 @@ services:
       - key: DATABASE_AUTH_TOKEN
         sync: false
 
-      # --- Photos : Cloudflare R2 --------------------------------------------
-      # Même raison que la base. Sans R2, les preuves avant/après des chantiers
-      # sont écrites sur le disque éphémère et perdues au redéploiement.
-      # Si l'un de ces champs manque, le code retombe sur le disque local
-      # (server/src/services/storage.ts) — acceptable pour un test, pas en
-      # production.
-      - key: R2_ENDPOINT
+      # --- Photos : stockage objet compatible S3 ------------------------------
+      # Supabase Storage, Cloudflare R2, Backblaze B2 — au choix. Même raison
+      # que la base : sans stockage externe, les preuves avant/après des
+      # chantiers sont écrites sur le disque éphémère et perdues au
+      # redéploiement. Si l'un de ces champs manque, le code retombe sur le
+      # disque local (server/src/services/storage.ts) — acceptable pour un
+      # test, pas en production.
+      - key: S3_ENDPOINT
         sync: false
-      - key: R2_BUCKET
+      - key: S3_BUCKET
         sync: false
-      - key: R2_ACCESS_KEY_ID
+      - key: S3_ACCESS_KEY_ID
         sync: false
-      - key: R2_SECRET_ACCESS_KEY
+      - key: S3_SECRET_ACCESS_KEY
         sync: false
-      - key: R2_PUBLIC_BASE
+      - key: S3_PUBLIC_BASE
+        sync: false
+      # `auto` ne vaut que pour R2 : ailleurs, la région doit être celle du
+      # bucket, sinon la signature SigV4 est rejetée.
+      - key: S3_REGION
         sync: false
 
       # --- Domaine ------------------------------------------------------------

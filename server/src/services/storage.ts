@@ -2,8 +2,12 @@
  * Stockage des photos. Jamais de blob en base (contrainte de stack).
  *
  * Deux implémentations derrière une interface :
- *   · disque local  — défaut, zéro configuration, suffisant en développement
- *   · Cloudflare R2 — API compatible S3, signée avec aws4fetch (~6 Ko)
+ *   · disque local — défaut, zéro configuration, suffisant en développement
+ *   · objet S3     — n'importe quel service compatible (R2, Supabase Storage,
+ *                    Backblaze B2, MinIO), signé avec aws4fetch (~6 Ko)
+ *
+ * L'adressage est en « path-style » (`endpoint/bucket/clé`), le seul que tous
+ * acceptent : le « virtual-host style » exigerait un sous-domaine par bucket.
  *
  * La clé d'objet est aléatoire : les URL ne doivent pas être énumérables, sinon
  * on offre la collection complète des photos à qui incrémente un compteur.
@@ -48,8 +52,8 @@ class StockageDisque implements Stockage {
   }
 }
 
-class StockageR2 implements Stockage {
-  readonly nom = 'r2';
+class StockageS3 implements Stockage {
+  readonly nom = 's3';
   private readonly client: AwsClient;
 
   constructor(
@@ -58,8 +62,9 @@ class StockageR2 implements Stockage {
     private readonly basePublique: string,
     accessKeyId: string,
     secretAccessKey: string,
+    region: string,
   ) {
-    this.client = new AwsClient({ accessKeyId, secretAccessKey, region: 'auto', service: 's3' });
+    this.client = new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3' });
   }
 
   async enregistrer(image: ImageValidee, prefixe: string): Promise<string> {
@@ -75,21 +80,24 @@ class StockageR2 implements Stockage {
       },
     });
     if (!reponse.ok) {
-      throw new Error(`R2 a refusé l'envoi (${reponse.status} ${await reponse.text()})`);
+      throw new Error(
+        `Le stockage objet a refusé l'envoi (${reponse.status} ${await reponse.text()})`,
+      );
     }
     return `${this.basePublique.replace(/\/$/, '')}/${cle}`;
   }
 }
 
 function choisir(): Stockage {
-  const { R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_BASE } = env;
-  if (R2_ENDPOINT && R2_BUCKET && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_PUBLIC_BASE) {
-    return new StockageR2(
-      R2_ENDPOINT,
-      R2_BUCKET,
-      R2_PUBLIC_BASE,
-      R2_ACCESS_KEY_ID,
-      R2_SECRET_ACCESS_KEY,
+  const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_BASE } = env;
+  if (S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY && S3_PUBLIC_BASE) {
+    return new StockageS3(
+      S3_ENDPOINT,
+      S3_BUCKET,
+      S3_PUBLIC_BASE,
+      S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY,
+      env.S3_REGION,
     );
   }
   return new StockageDisque();

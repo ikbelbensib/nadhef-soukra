@@ -20,12 +20,22 @@ const schema = z.object({
   /** Fournisseur SMS. `console` affiche le code dans les logs (développement). */
   SMS_PROVIDER: z.string().default('console'),
 
-  /** Stockage des photos. Si l'un manque, on retombe sur le disque local. */
-  R2_ENDPOINT: z.string().url().optional(),
-  R2_BUCKET: z.string().optional(),
-  R2_ACCESS_KEY_ID: z.string().optional(),
-  R2_SECRET_ACCESS_KEY: z.string().optional(),
-  R2_PUBLIC_BASE: z.string().url().optional(),
+  /**
+   * Stockage des photos, sur n'importe quel service compatible S3 — Cloudflare
+   * R2, Supabase Storage, Backblaze B2, MinIO. Si l'un des cinq champs manque,
+   * on retombe sur le disque local.
+   */
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_PUBLIC_BASE: z.string().url().optional(),
+  /**
+   * R2 accepte la région fictive `auto` ; la plupart des autres services
+   * vérifient qu'elle correspond à celle du bucket, et rejettent la signature
+   * SigV4 sinon (`SignatureDoesNotMatch`). Supabase attend p. ex. `eu-central-1`.
+   */
+  S3_REGION: z.string().default('auto'),
 
   /** Base publique du site, pour les URL partageables et les métadonnées Open Graph. */
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:3000'),

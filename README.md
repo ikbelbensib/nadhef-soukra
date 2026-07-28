@@ -44,7 +44,13 @@ hébergeur de ce type est éphémère :
 | Service | Sans lui |
 |---|---|
 | **Turso** (`DATABASE_URL`) | tous les signalements disparaissent au redéploiement |
-| **Cloudflare R2** (`R2_*`) | les preuves avant/après des chantiers disparaissent |
+| **Un stockage objet S3** (`S3_*`) | les preuves avant/après des chantiers disparaissent |
+
+Le stockage marche avec n'importe quel service compatible S3. **Supabase
+Storage** (1 Go, sans carte bancaire) et **Cloudflare R2** (10 Go, carte
+exigée) sont tous deux vérifiés par la même implémentation. Seule subtilité :
+`S3_REGION` vaut `auto` chez R2 et la région réelle du bucket partout ailleurs,
+faute de quoi la signature SigV4 est rejetée.
 
 ### En développement
 
