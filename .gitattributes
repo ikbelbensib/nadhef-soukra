@@ -1,0 +1,9 @@
+# Normalisation des fins de ligne : LF en base, quelle que soit la machine.
+# Sans cette règle, un checkout Windows réécrit tout le dépôt en CRLF et le
+# moindre diff devient illisible.
+* text=auto eol=lf
+
+*.png binary
+*.woff  binary
+*.woff2 binary
+*.pmtiles binary

@@ -1,0 +1,42 @@
+# Nadhef Soukra — pile complète en une commande : `docker compose up --build`
+# Puis http://localhost:3000
+#
+# Pas de service de base de données : libSQL fonctionne sur un fichier local.
+# Le passage à Turso se fait en renseignant DATABASE_URL / DATABASE_AUTH_TOKEN.
+
+services:
+  app:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: file:/app/server/data/db/nadhef.db
+      # Valeurs de démonstration : à remplacer avant toute mise en ligne.
+      PHONE_PEPPER: ${PHONE_PEPPER:-changez-moi-pepper-32-caracteres-min}
+      JWT_SECRET: ${JWT_SECRET:-changez-moi-jwt-secret-32-caracteres}
+      SEED_ADMIN_PSEUDO: ${SEED_ADMIN_PSEUDO:-admin}
+      SEED_ADMIN_PHONE: ${SEED_ADMIN_PHONE:-+21620000000}
+      # Jeu de démonstration au premier démarrage, pour que la carte ne soit pas
+      # vide. À passer à false dès que les données sont réelles.
+      SEED_ON_START: ${SEED_ON_START:-true}
+      PMTILES_URL: /tiles/soukra.pmtiles
+    volumes:
+      - nadhef-db:/app/server/data/db
+      # Déposez un extrait Protomaps ici pour obtenir le fond de rues réel.
+      - ./server/data/tiles:/app/server/data/tiles:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 4s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  nadhef-db:

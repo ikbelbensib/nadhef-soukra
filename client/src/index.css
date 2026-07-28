@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+/* Typographie à forte lisibilité en arabe, livrée par npm et empaquetée par Vite :
+   aucune requête vers un CDN, et la police reste disponible hors ligne.
+   Les sous-ensembles `arabic-*` évitent d'embarquer le latin en double. */
+@import '@fontsource/noto-sans-arabic/arabic-400.css';
+@import '@fontsource/noto-sans-arabic/arabic-600.css';
+@import '@fontsource/noto-sans-arabic/400.css';
+@import '@fontsource/noto-sans-arabic/600.css';
+
+@theme {
+  --font-sans:
+    'Noto Sans Arabic', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+    /* Usage majoritairement en extérieur : pas de rebond élastique parasite. */
+    overscroll-behavior: none;
+  }
+
+  /* La carte est manipulée au doigt : le zoom par double-tap gêne le drag. */
+  .maplibregl-map {
+    touch-action: pan-x pan-y;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-slate-800;
+  }
+}

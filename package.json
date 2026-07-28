@@ -1,0 +1,22 @@
+{
+  "name": "nadhef-soukra",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "workspaces": ["shared", "server", "client"],
+  "scripts": {
+    "dev": "npm run migrate -w server && concurrently -n server,client -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
+    "migrate": "npm run migrate -w server",
+    "seed": "npm run seed -w server",
+    "reset": "npm run reset -w server",
+    "test": "npm run test -w server",
+    "typecheck": "tsc -b shared server client --pretty",
+    "boundaries": "node server/scripts/fetch-boundaries.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}
