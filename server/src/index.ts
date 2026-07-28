@@ -18,6 +18,18 @@ async function main(): Promise<void> {
     await seed();
   }
 
+  // Indépendant du seed : sans modérateur, la file de modération et les
+  // exports municipaux seraient inaccessibles, et rien ne permet de promouvoir
+  // un compte après coup.
+  const { assurerAdmin } = await import('./db/bootstrap.js');
+  const amorcage = await assurerAdmin();
+  if (amorcage === 'numero_invalide') {
+    console.warn(
+      `⚠ SEED_ADMIN_PHONE (${env.SEED_ADMIN_PHONE}) n'est pas un numéro tunisien valide :` +
+        ' aucun modérateur ne peut être créé, la modération restera inaccessible.',
+    );
+  }
+
   // La carte ne dépend pas de ce job : la fraîcheur est calculée à la lecture.
   // Il n'aligne le statut stocké que pour les exports et les statistiques.
   const arreterJobs = planifierTravauxNocturnes();
@@ -31,6 +43,7 @@ async function main(): Promise<void> {
     base           ${env.DATABASE_URL}
     migration      ${head ?? '(aucune)'}
     commune        ${communeInfo.nom_fr} — ${quartiers.length} quartiers
+    modérateur     ${amorcage}
 `);
   });
 

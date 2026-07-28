@@ -90,3 +90,14 @@ services:
       # les données sont celles des habitants.
       - key: SEED_ON_START
         value: "false"
+
+      # --- Modérateur ---------------------------------------------------------
+      # Indépendant du seed : au démarrage, si aucun compte `admin` n'existe,
+      # ce numéro en devient un. Sans lui, personne ne pourrait jamais modérer,
+      # aucune route ne permettant de promouvoir un compte après coup.
+      # Mets TON numéro (format tunisien, 8 chiffres commençant par 2/4/5/9) :
+      # c'est celui qui recevra le code de connexion.
+      - key: SEED_ADMIN_PHONE
+        sync: false
+      - key: SEED_ADMIN_PSEUDO
+        sync: false
