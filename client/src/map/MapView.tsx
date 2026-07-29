@@ -30,6 +30,11 @@ function fondInitial(): boolean {
  * Sur le plan, gris ardoise cerné de blanc. Sur l'imagerie — sombre, bruitée,
  * de luminosité imprévisible — l'inverse est le seul lisible : blanc cerné de
  * noir. C'est la même raison qui fait blanchir les contours administratifs.
+ *
+ * Le style est porté par un <span> INTÉRIEUR, jamais par l'élément du marqueur.
+ * MapLibre pose ses propres classes sur ce dernier — `maplibregl-marker` et son
+ * ancrage — et réaffecter `className` dessus les effacerait : les étiquettes
+ * perdent alors leur positionnement et disparaissent de la carte.
  */
 const ETIQUETTE_BASE =
   'pointer-events-none select-none whitespace-nowrap text-[13px] font-semibold ';
@@ -37,6 +42,28 @@ const ETIQUETTE_PLAN =
   ETIQUETTE_BASE + 'text-slate-600 [text-shadow:0_0_3px_#fff,0_0_3px_#fff,0_0_3px_#fff]';
 const ETIQUETTE_SATELLITE =
   ETIQUETTE_BASE + 'text-white [text-shadow:0_0_3px_#000,0_0_4px_#000,0_1px_2px_#000]';
+
+/**
+ * Attend qu'un calque du style soit présent.
+ *
+ * `setLayoutProperty` et `setPaintProperty` lèvent tant que le style n'est pas
+ * analysé, et `isStyleLoaded()` reste faux sur une carte pourtant peinte. Les
+ * calques étant déclarés dans le style, leur simple présence est le signal
+ * fiable — même raisonnement que `attendreSources`.
+ */
+function quandCalquePret(map: MapLibreMap, id: string, action: () => void): () => void {
+  if (map.getLayer(id)) {
+    action();
+    return () => {};
+  }
+  const surStyle = (): void => {
+    if (!map.getLayer(id)) return;
+    map.off('styledata', surStyle);
+    action();
+  };
+  map.on('styledata', surStyle);
+  return () => map.off('styledata', surStyle);
+}
 
 // Enregistré une seule fois pour tout le module : MapLibre résout alors
 // les URL `pmtiles://` par requêtes Range sur un fichier statique.
@@ -205,7 +232,9 @@ export function MapView({
       map.setPaintProperty('quartiers-contour', 'line-color', actif ? '#e2e8f0' : '#94a3b8');
     }
     for (const marqueur of etiquettes.current) {
-      marqueur.getElement().className = actif ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
+      // Le <span> intérieur, jamais l'élément du marqueur : voir plus haut.
+      const texte = marqueur.getElement().firstElementChild;
+      if (texte) texte.className = actif ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
     }
   }, []);
 
@@ -279,15 +308,19 @@ export function MapView({
     // dépendre d'un jeu de glyphes SDF distant. Sept étiquettes statiques.
     const marqueurs = config.quartiers.map((q) => {
       const el = document.createElement('div');
-      el.className = fondInitial() ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
-      el.textContent = q.nom_ar;
+      const texte = document.createElement('span');
+      texte.className = fondInitial() ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
+      texte.textContent = q.nom_ar;
+      el.appendChild(texte);
       return new maplibregl.Marker({ element: el }).setLngLat(q.centre).addTo(map);
     });
     etiquettes.current = marqueurs;
 
     // Le style a été construit avec la bonne visibilité, mais pas les couleurs
-    // de contraste : on les aligne une fois les calques présents.
-    if (fondInitial()) appliquerFond(map, true);
+    // de contraste : on les aligne dès que les calques existent.
+    const annulerFond = fondInitial()
+      ? quandCalquePret(map, 'commune-contour', () => appliquerFond(map, true))
+      : () => {};
 
     map.on('click', 'spots-marqueurs', (e) => {
       const feature = e.features?.[0];
@@ -316,6 +349,7 @@ export function MapView({
     }
 
     return () => {
+      annulerFond();
       for (const marqueur of marqueurs) marqueur.remove();
       etiquettes.current = [];
       map.remove();
