@@ -91,6 +91,15 @@ services:
       - key: SEED_ON_START
         value: "false"
 
+      # --- Vue satellite (facultative) ----------------------------------------
+      # Clé MapTiler, palier gratuit : 100 000 chargements par mois, sans carte
+      # bancaire, et le service s'arrête au lieu de facturer. Absente, le bouton
+      # satellite n'apparaît pas et l'application fonctionne comme avant.
+      # Restreins les domaines autorisés depuis le tableau de bord MapTiler :
+      # cette clé est forcément visible du navigateur.
+      - key: MAPTILER_KEY
+        sync: false
+
       # --- Modérateur ---------------------------------------------------------
       # Indépendant du seed : au démarrage, si aucun compte `admin` n'existe,
       # ce numéro en devient un. Sans lui, personne ne pourrait jamais modérer,

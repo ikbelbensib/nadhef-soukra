@@ -55,6 +55,17 @@ const schema = z.object({
   /** Fond de carte Protomaps auto-hébergé (règle #1 : pas de Google Maps). */
   PMTILES_URL: texte().default('/tiles/soukra.pmtiles'),
 
+  /**
+   * Vue satellite, facultative — MapTiler, palier gratuit : 100 000 chargements
+   * par mois, sans carte bancaire, et le service s'arrête au lieu de facturer.
+   * Absente, l'application n'affiche simplement pas le bouton satellite.
+   *
+   * Cette clé est forcément visible du navigateur : n'importe quelle carte
+   * expose la sienne. Elle se protège en restreignant les domaines autorisés
+   * depuis le tableau de bord MapTiler, pas en la cachant.
+   */
+  MAPTILER_KEY: texte().optional(),
+
   /** Compte modérateur créé au seed. */
   SEED_ADMIN_PSEUDO: texte().min(2).max(32).default('admin'),
   // Doit respecter le format tunisien réel (8 chiffres commençant par 2/4/5/9),

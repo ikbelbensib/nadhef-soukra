@@ -54,7 +54,14 @@ router.get('/config', (_req, res) => {
         (communeInfo.bbox.minLat + communeInfo.bbox.maxLat) / 2,
       ],
     },
-    tiles: { pmtiles_url: env.PMTILES_URL },
+    tiles: {
+      pmtiles_url: env.PMTILES_URL,
+      // TileJSON plutôt qu'un gabarit d'URL : MapLibre y lit la taille des
+      // tuiles, le zoom maximal et l'attribution, qu'on n'a donc pas à deviner.
+      satellite_url: env.MAPTILER_KEY
+        ? `https://api.maptiler.com/tiles/satellite-v2/tiles.json?key=${env.MAPTILER_KEY}`
+        : null,
+    },
     quartiers: quartiers.map((q) => ({
       id: q.properties.id,
       nom_fr: q.properties.nom_fr,

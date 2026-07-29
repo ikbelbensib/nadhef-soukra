@@ -29,6 +29,16 @@ export const PALETTE = {
 } as const;
 
 export const SOURCE_BASE = 'protomaps';
+export const SOURCE_SATELLITE = 'satellite';
+export const COUCHE_SATELLITE = 'satellite';
+
+/**
+ * Calques masqués quand la vue satellite est active.
+ *
+ * Les deux premiers sont les aplats du fond schématique : posés au-dessus de
+ * l'imagerie, ils la recouvriraient entièrement.
+ */
+export const COUCHES_MASQUEES_EN_SATELLITE = ['commune-fond', 'quartiers-fond'] as const;
 
 /**
  * Le fichier de tuiles est optionnel : on vérifie sa présence avant de
@@ -136,11 +146,14 @@ function couchesBase(avecTexte: boolean): StyleSpecification['layers'] {
  */
 export function construireStyle(options: {
   pmtilesUrl: string | null;
+  satelliteUrl: string | null;
+  satelliteVisible: boolean;
   glyphs: string | null;
   sources: StyleSpecification['sources'];
   layers: StyleSpecification['layers'];
 }): StyleSpecification {
   const avecTuiles = options.pmtilesUrl !== null;
+  const avecSatellite = options.satelliteUrl !== null;
   return {
     version: 8,
     // Un style sans `glyphs` est valide tant qu'aucun calque symbol n'existe ;
@@ -156,11 +169,37 @@ export function construireStyle(options: {
             } satisfies StyleSpecification['sources'][string],
           }
         : {}),
+      // La source satellite est toujours déclarée quand une clé existe, mais
+      // son calque peut être masqué : MapLibre ne télécharge aucune tuile d'un
+      // calque invisible. Basculer ne coûte donc rien tant qu'on ne s'en sert
+      // pas, et n'oblige pas à reconstruire le style — donc pas de perte des
+      // données déjà chargées ni du cadrage.
+      ...(avecSatellite
+        ? {
+            [SOURCE_SATELLITE]: {
+              type: 'raster',
+              url: options.satelliteUrl as string,
+            } satisfies StyleSpecification['sources'][string],
+          }
+        : {}),
       ...options.sources,
     },
     layers: [
       { id: 'fond', type: 'background', paint: { 'background-color': PALETTE.fond } },
       ...(avecTuiles ? couchesBase(options.glyphs !== null) : []),
+      // Placée APRÈS le fond vectoriel et AVANT les calques métier : visible,
+      // elle recouvre le plan ; les limites et les points restent au-dessus.
+      ...(avecSatellite
+        ? ([
+            {
+              id: COUCHE_SATELLITE,
+              type: 'raster',
+              source: SOURCE_SATELLITE,
+              layout: { visibility: options.satelliteVisible ? 'visible' : 'none' },
+              paint: { 'raster-opacity': 1 },
+            },
+          ] satisfies StyleSpecification['layers'])
+        : []),
       ...options.layers,
     ],
   };

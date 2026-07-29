@@ -39,17 +39,27 @@ export function PickerCarte({ config, position, onChange }: Props) {
       ]);
       if (annule || !element) return;
 
+      // Ici le satellite est actif d'emblée quand il est disponible, sans
+      // suivre la préférence globale : cet écran n'existe que pour poser un
+      // repère au bon endroit, et on reconnaît un terrain vague, un mur ou un
+      // virage sur une image, pas sur un aplat gris.
+      const satellite = config.tiles.satellite_url !== null;
+
       const map = new maplibregl.Map({
         container: element,
         style: construireStyle({
           pmtilesUrl: avecTuiles ? config.tiles.pmtiles_url : null,
+          satelliteUrl: config.tiles.satellite_url,
+          satelliteVisible: satellite,
           glyphs,
           sources: commune
             ? { [SRC_COMMUNE]: { type: 'geojson', data: commune as unknown as GeoJSON.Feature } }
             : {},
           layers: commune
             ? [
-                ...(avecTuiles
+                // L'aplat ne sert que de fond de secours : sous une image, il
+                // la masquerait entièrement.
+                ...(avecTuiles || satellite
                   ? []
                   : [
                       {
@@ -63,7 +73,10 @@ export function PickerCarte({ config, position, onChange }: Props) {
                   id: 'commune-contour',
                   type: 'line' as const,
                   source: SRC_COMMUNE,
-                  paint: { 'line-color': '#475569', 'line-width': 2 },
+                  paint: {
+                    'line-color': satellite ? '#ffffff' : '#475569',
+                    'line-width': 2,
+                  },
                 },
               ]
             : [],

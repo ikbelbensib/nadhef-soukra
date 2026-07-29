@@ -112,7 +112,7 @@ export interface ConfigDto {
     bbox: BBoxDto;
     centre: [number, number];
   };
-  tiles: { pmtiles_url: string };
+  tiles: { pmtiles_url: string; satellite_url: string | null };
   quartiers: QuartierDto[];
   referentiel: {
     types: readonly SpotType[];

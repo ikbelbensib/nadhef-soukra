@@ -1,10 +1,42 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import maplibregl, { type Map as MapLibreMap, type StyleSpecification } from 'maplibre-gl';
 import { Protocol } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { api, type ConfigDto, type SpotProperties } from '../api/client';
-import { construireStyle, pmtilesDisponible, resoudreGlyphs } from './style';
+import {
+  COUCHES_MASQUEES_EN_SATELLITE,
+  COUCHE_SATELLITE,
+  construireStyle,
+  pmtilesDisponible,
+  resoudreGlyphs,
+} from './style';
 import { couchesSpots, couchesTerritoire, sourcesCarte, SRC_HEAT, SRC_POINTS } from './layers';
+
+const CLE_FOND = 'nadhef.fond';
+
+/** Le choix du fond suit l'utilisateur d'un écran à l'autre et d'une session à l'autre. */
+function fondInitial(): boolean {
+  try {
+    return localStorage.getItem(CLE_FOND) === 'satellite';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Étiquettes de quartier : deux habillages selon le fond.
+ *
+ * Sur le plan, gris ardoise cerné de blanc. Sur l'imagerie — sombre, bruitée,
+ * de luminosité imprévisible — l'inverse est le seul lisible : blanc cerné de
+ * noir. C'est la même raison qui fait blanchir les contours administratifs.
+ */
+const ETIQUETTE_BASE =
+  'pointer-events-none select-none whitespace-nowrap text-[13px] font-semibold ';
+const ETIQUETTE_PLAN =
+  ETIQUETTE_BASE + 'text-slate-600 [text-shadow:0_0_3px_#fff,0_0_3px_#fff,0_0_3px_#fff]';
+const ETIQUETTE_SATELLITE =
+  ETIQUETTE_BASE + 'text-white [text-shadow:0_0_3px_#000,0_0_4px_#000,0_1px_2px_#000]';
 
 // Enregistré une seule fois pour tout le module : MapLibre résout alors
 // les URL `pmtiles://` par requêtes Range sur un fichier statique.
@@ -76,6 +108,7 @@ function useCarteInitiale(config: ConfigDto): {
   const [carte, setCarte] = useState<CarteInitiale | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const pmtilesUrl = config.tiles.pmtiles_url;
+  const satelliteUrl = config.tiles.satellite_url;
 
   useEffect(() => {
     let annule = false;
@@ -96,6 +129,10 @@ function useCarteInitiale(config: ConfigDto): {
           nbSpots: spots.features.length,
           style: construireStyle({
             pmtilesUrl: avecTuiles ? pmtilesUrl : null,
+            satelliteUrl,
+            // L'état initial est appliqué dès la construction : la carte n'est
+            // jamais peinte dans un fond que l'utilisateur n'a pas choisi.
+            satelliteVisible: fondInitial(),
             glyphs,
             sources: sourcesCarte({
               commune: commune as unknown as GeoJSON.Feature,
@@ -115,7 +152,7 @@ function useCarteInitiale(config: ConfigDto): {
     return () => {
       annule = true;
     };
-  }, [pmtilesUrl]);
+  }, [pmtilesUrl, satelliteUrl]);
 
   return { carte, erreur };
 }
@@ -136,10 +173,53 @@ export function MapView({
   onCompteChange,
   onFondSchematique,
 }: Props) {
+  const { t } = useTranslation();
   const conteneur = useRef<HTMLDivElement>(null);
   const instance = useRef<MapLibreMap | null>(null);
+  const etiquettes = useRef<maplibregl.Marker[]>([]);
   const { carte, erreur } = useCarteInitiale(config);
   const clefParametres = JSON.stringify(parametres ?? {});
+  const [satellite, setSatellite] = useState(fondInitial);
+  const avecSatellite = config.tiles.satellite_url !== null;
+
+  /**
+   * Bascule du fond, sans reconstruire le style.
+   *
+   * `setStyle` aurait détruit puis recréé les sources : filtres appliqués
+   * perdus, données à recharger, cadrage à restaurer. Ici on ne touche qu'à la
+   * visibilité de calques déjà déclarés, et aux couleurs qui doivent contraster
+   * avec ce qu'il y a dessous.
+   */
+  const appliquerFond = useCallback((map: MapLibreMap, actif: boolean): void => {
+    if (map.getLayer(COUCHE_SATELLITE)) {
+      map.setLayoutProperty(COUCHE_SATELLITE, 'visibility', actif ? 'visible' : 'none');
+    }
+    // Les aplats du fond schématique n'existent que sans tuiles vectorielles.
+    for (const id of COUCHES_MASQUEES_EN_SATELLITE) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', actif ? 'none' : 'visible');
+    }
+    if (map.getLayer('commune-contour')) {
+      map.setPaintProperty('commune-contour', 'line-color', actif ? '#ffffff' : '#475569');
+    }
+    if (map.getLayer('quartiers-contour')) {
+      map.setPaintProperty('quartiers-contour', 'line-color', actif ? '#e2e8f0' : '#94a3b8');
+    }
+    for (const marqueur of etiquettes.current) {
+      marqueur.getElement().className = actif ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
+    }
+  }, []);
+
+  const basculerFond = (): void => {
+    const suivant = !satellite;
+    setSatellite(suivant);
+    try {
+      localStorage.setItem(CLE_FOND, suivant ? 'satellite' : 'plan');
+    } catch {
+      /* stockage indisponible : la préférence ne survivra pas à la session */
+    }
+    const map = instance.current;
+    if (map) appliquerFond(map, suivant);
+  };
 
   /**
    * Les rappels passent par une référence, jamais par les dépendances de
@@ -197,14 +277,17 @@ export function MapView({
     // Noms de quartiers en HTML plutôt qu'en calque `symbol` : le navigateur
     // applique la vraie police arabe et sa mise en forme contextuelle, sans
     // dépendre d'un jeu de glyphes SDF distant. Sept étiquettes statiques.
-    const etiquettes = config.quartiers.map((q) => {
+    const marqueurs = config.quartiers.map((q) => {
       const el = document.createElement('div');
-      el.className =
-        'pointer-events-none select-none whitespace-nowrap text-[13px] font-semibold ' +
-        'text-slate-600 [text-shadow:0_0_3px_#fff,0_0_3px_#fff,0_0_3px_#fff]';
+      el.className = fondInitial() ? ETIQUETTE_SATELLITE : ETIQUETTE_PLAN;
       el.textContent = q.nom_ar;
       return new maplibregl.Marker({ element: el }).setLngLat(q.centre).addTo(map);
     });
+    etiquettes.current = marqueurs;
+
+    // Le style a été construit avec la bonne visibilité, mais pas les couleurs
+    // de contraste : on les aligne une fois les calques présents.
+    if (fondInitial()) appliquerFond(map, true);
 
     map.on('click', 'spots-marqueurs', (e) => {
       const feature = e.features?.[0];
@@ -233,12 +316,13 @@ export function MapView({
     }
 
     return () => {
-      for (const etiquette of etiquettes) etiquette.remove();
+      for (const marqueur of marqueurs) marqueur.remove();
+      etiquettes.current = [];
       map.remove();
       instance.current = null;
     };
     // Volontairement sans les rappels : voir `rappels` plus haut.
-  }, [carte, config]);
+  }, [carte, config, appliquerFond]);
 
   /**
    * Application des filtres.
@@ -285,6 +369,23 @@ export function MapView({
   return (
     <div className="relative h-full w-full">
       <div ref={conteneur} className="h-full w-full" />
+
+      {/* Le bouton n'existe que si une clé satellite est configurée : pas de
+          commande qui ne mène nulle part. Placé à l'opposé des contrôles de
+          zoom pour rester atteignable au pouce sur un écran de 360 px. */}
+      {avecSatellite && (
+        <button
+          type="button"
+          onClick={basculerFond}
+          aria-pressed={satellite}
+          className="absolute bottom-24 end-3 z-10 min-h-11 rounded-xl bg-white/95 px-3 py-2
+                     text-sm font-semibold text-slate-700 shadow-lg ring-1 ring-slate-300
+                     backdrop-blur hover:bg-white"
+        >
+          {t(satellite ? 'carte.vue_plan' : 'carte.vue_satellite')}
+        </button>
+      )}
+
       {erreur !== null && (
         <div className="absolute inset-x-3 top-3 rounded-lg bg-red-600 px-3 py-2 text-sm text-white shadow-lg">
           {erreur}
