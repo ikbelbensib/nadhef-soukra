@@ -265,9 +265,19 @@ export function MapView({
 
   useEffect(() => {
     if (!carte) return;
-    rappels.current.onFondSchematique?.(carte.schematique);
     rappels.current.onCompteChange?.(carte.nbSpots);
   }, [carte]);
+
+  /**
+   * Le fond n'est « schématique » que s'il n'y a ni tuiles vectorielles ni
+   * imagerie. Annoncer « fond de rues non chargé » par-dessus une vue satellite
+   * décrirait un problème qui n'existe plus — et se remet à jour à chaque
+   * bascule, d'où la dépendance à `satellite`.
+   */
+  useEffect(() => {
+    if (!carte) return;
+    rappels.current.onFondSchematique?.(carte.schematique && !satellite);
+  }, [carte, satellite]);
 
   useEffect(() => {
     const element = conteneur.current;
